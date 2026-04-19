@@ -29,7 +29,7 @@ jobs:
           path: dist/圍棋小學堂.exe
           retention-days: 30
 
-  # ── 版本二：含 GnuGo ─────────────────────────────────────────────────────────
+  # ── 版本二：含 GnuGo（MSYS2 原生編譯）──────────────────────────────────────
   build-with-gnugo:
     runs-on: windows-latest
     steps:
@@ -40,33 +40,31 @@ jobs:
       - name: Install PyInstaller
         run: pip install pyinstaller
 
-      - name: Install GnuGo via MSYS2 pacman
+      - name: Compile GnuGo from source in MSYS2
         shell: cmd
-        run: C:\msys64\usr\bin\bash.exe -lc "pacman -Sy --noconfirm mingw-w64-x86_64-gnugo 2>&1"
-
-      - name: Find gnugo.exe location
-        shell: pwsh
         run: |
-          Write-Host "=== Searching C:\msys64 for gnugo ==="
-          Get-ChildItem -Path "C:\msys64" -Filter "*gnugo*" -Recurse -ErrorAction SilentlyContinue |
-            Select-Object FullName, Length | Format-Table -AutoSize
-          Write-Host "=== where gnugo ==="
-          where.exe gnugo 2>&1
+          C:\msys64\usr\bin\bash.exe -lc "
+            export PATH='/mingw64/bin:/usr/bin:$PATH'
+            pacman -S --noconfirm make mingw-w64-x86_64-gcc wget 2>&1 | grep -E 'installed|up to date|error' || true
+            cd /tmp
+            wget -q https://ftp.gnu.org/gnu/gnugo/gnugo-3.8.tar.gz -O gnugo.tar.gz
+            tar xzf gnugo.tar.gz
+            cd gnugo-3.8
+            ./configure --prefix=/tmp/gnugo_install 2>&1 | tail -2
+            make -j2 2>&1 | tail -5
+            ls -la interface/
+            cp interface/gnugo.exe /tmp/gnugo_install/gnugo.exe
+          "
 
       - name: Copy gnugo.exe to workspace
         shell: pwsh
         run: |
-          $candidates = @(
-            "C:\msys64\mingw64\bin\gnugo.exe",
-            "C:\msys64\usr\bin\gnugo.exe",
-            "C:\msys64\mingw64\bin\gnugo",
-            (where.exe gnugo 2>$null | Select-Object -First 1)
-          ) | Where-Object { $_ -and (Test-Path $_) }
-          if ($candidates.Count -gt 0) {
-            Copy-Item $candidates[0] -Destination "gnugo.exe" -Force
-            Write-Host "Copied: $($candidates[0])"
+          $src = "C:\msys64\tmp\gnugo_install\gnugo.exe"
+          if (Test-Path $src) {
+            Copy-Item $src -Destination "gnugo.exe" -Force
+            Write-Host "OK: $((Get-Item 'gnugo.exe').Length) bytes"
           } else {
-            Write-Error "gnugo not found anywhere!"
+            Write-Error "gnugo.exe not built at $src"
             exit 1
           }
 
