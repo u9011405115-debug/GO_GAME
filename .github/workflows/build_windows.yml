@@ -57,7 +57,7 @@ jobs:
 
           echo "=== Configuring ==="
           cd gnugo-3.8
-          CFLAGS="-g -O2 -Wno-implicit-int -Wno-implicit-function-declaration -Wno-old-style-definition" \
+          CFLAGS="-g -O2 -fcommon -Wno-implicit-int -Wno-implicit-function-declaration -Wno-old-style-definition" \
             ./configure CC=x86_64-w64-mingw32-gcc --host=x86_64-w64-mingw32
 
           echo "=== Patching getopt.c ==="
