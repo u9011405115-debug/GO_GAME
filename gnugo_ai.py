@@ -13,6 +13,7 @@ GnuGo level 對應棋力（概估）：
 
 import subprocess
 import os
+import sys
 import shutil
 
 from board import BLACK, WHITE, EMPTY
@@ -25,8 +26,16 @@ _LETTERS = 'ABCDEFGHJKLMNOPQRST'
 def find_gnugo():
     """找 gnugo 可執行檔，找到回傳路徑，找不到回傳 None。"""
     base = os.path.dirname(os.path.abspath(__file__))
-    candidates = [
-        os.path.join(base, 'gnugo.exe'),   # Windows 旁置
+    # PyInstaller --onefile 模式：執行檔解壓縮到 sys._MEIPASS 暫存目錄
+    meipass = getattr(sys, '_MEIPASS', None)
+    candidates = []
+    if meipass:
+        candidates += [
+            os.path.join(meipass, 'gnugo.exe'),
+            os.path.join(meipass, 'gnugo'),
+        ]
+    candidates += [
+        os.path.join(base, 'gnugo.exe'),   # Windows 旁置 / --onedir
         os.path.join(base, 'gnugo'),        # macOS/Linux 旁置
         'gnugo',
         'gnugo.exe',
