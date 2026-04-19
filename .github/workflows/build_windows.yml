@@ -40,31 +40,49 @@ jobs:
       - name: Install PyInstaller
         run: pip install pyinstaller
 
-      - name: Compile GnuGo from source in MSYS2
-        shell: cmd
-        run: |
-          C:\msys64\usr\bin\bash.exe -lc "
-            export PATH='/mingw64/bin:/usr/bin:$PATH'
-            pacman -S --noconfirm make mingw-w64-x86_64-gcc wget 2>&1 | grep -E 'installed|up to date|error' || true
-            cd /tmp
-            wget -q https://ftp.gnu.org/gnu/gnugo/gnugo-3.8.tar.gz -O gnugo.tar.gz
-            tar xzf gnugo.tar.gz
-            cd gnugo-3.8
-            ./configure --prefix=/tmp/gnugo_install 2>&1 | tail -2
-            make -j2 2>&1 | tail -5
-            ls -la interface/
-            cp interface/gnugo.exe /tmp/gnugo_install/gnugo.exe
-          "
-
-      - name: Copy gnugo.exe to workspace
+      - name: Write GnuGo build script
         shell: pwsh
         run: |
-          $src = "C:\msys64\tmp\gnugo_install\gnugo.exe"
-          if (Test-Path $src) {
-            Copy-Item $src -Destination "gnugo.exe" -Force
+          $script = @'
+          export PATH='/mingw64/bin:/usr/local/bin:/usr/bin:/bin'
+          set -e
+
+          echo "=== Installing build tools ==="
+          pacman -S --noconfirm --needed make mingw-w64-x86_64-gcc wget
+
+          echo "=== Downloading GnuGo 3.8 ==="
+          cd /tmp
+          wget -q https://ftp.gnu.org/gnu/gnugo/gnugo-3.8.tar.gz -O gnugo.tar.gz
+          tar xzf gnugo.tar.gz
+
+          echo "=== Configuring ==="
+          cd gnugo-3.8
+          ./configure CC=x86_64-w64-mingw32-gcc --host=x86_64-w64-mingw32
+
+          echo "=== Building ==="
+          make -j2
+
+          echo "=== Copying result ==="
+          ls -la interface/
+          cp interface/gnugo.exe /c/gnugo_built.exe
+          echo "DONE: gnugo.exe built successfully"
+          '@
+          # Remove leading spaces from heredoc
+          $lines = $script -split "`n" | ForEach-Object { $_ -replace '^\s{10}', '' }
+          $lines -join "`n" | Out-File -FilePath "build_gnugo.sh" -Encoding utf8NoBOM
+
+      - name: Compile GnuGo from source in MSYS2
+        shell: cmd
+        run: C:\msys64\usr\bin\bash.exe -l build_gnugo.sh
+
+      - name: Verify and copy gnugo.exe
+        shell: pwsh
+        run: |
+          if (Test-Path "C:\gnugo_built.exe") {
+            Copy-Item "C:\gnugo_built.exe" -Destination "gnugo.exe" -Force
             Write-Host "OK: $((Get-Item 'gnugo.exe').Length) bytes"
           } else {
-            Write-Error "gnugo.exe not built at $src"
+            Write-Error "gnugo.exe not found at C:\gnugo_built.exe"
             exit 1
           }
 
