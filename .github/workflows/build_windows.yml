@@ -29,7 +29,7 @@ jobs:
           path: dist/圍棋小學堂.exe
           retention-days: 30
 
-  # ── 版本二：含 GnuGo ────────────────────────────────────────────────────────
+  # ── 版本二：含 GnuGo（用 runner 內建 MSYS2）─────────────────────────────────
   build-with-gnugo:
     runs-on: windows-latest
     steps:
@@ -40,27 +40,19 @@ jobs:
       - name: Install PyInstaller
         run: pip install pyinstaller
 
-      # 用 MSYS2 shell 直接安裝並複製 gnugo
-      - uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          update: false
-          install: mingw-w64-x86_64-gnugo
+      - name: Install GnuGo via built-in MSYS2
+        shell: cmd
+        run: C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm mingw-w64-x86_64-gnugo 2>&1 || echo pacman failed"
 
-      - name: Copy gnugo.exe from MSYS2
-        shell: msys2 {0}
-        run: |
-          which gnugo
-          cp "$(which gnugo)" "$GITHUB_WORKSPACE/gnugo.exe"
-          echo "Copied gnugo.exe to workspace"
-
-      - name: Verify gnugo.exe
+      - name: Copy gnugo.exe to workspace
         shell: pwsh
         run: |
-          if (Test-Path "gnugo.exe") {
-            Write-Host "gnugo.exe found, size: $((Get-Item gnugo.exe).Length) bytes"
+          $src = "C:\msys64\mingw64\bin\gnugo.exe"
+          if (Test-Path $src) {
+            Copy-Item $src -Destination "gnugo.exe" -Force
+            Write-Host "OK: copied from $src ($((Get-Item 'gnugo.exe').Length) bytes)"
           } else {
-            Write-Error "gnugo.exe not found!"
+            Write-Error "gnugo.exe not found at $src"
             exit 1
           }
 
