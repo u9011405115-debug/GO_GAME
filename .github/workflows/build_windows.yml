@@ -1,0 +1,50 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      - name: Install GnuGo via Chocolatey (optional)
+        run: choco install gnugo -y --no-progress
+        continue-on-error: true
+
+      - name: Copy gnugo.exe if available
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $gp = (Get-Command gnugo.exe -ErrorAction SilentlyContinue)?.Source
+          if ($gp) { Copy-Item $gp -Destination gnugo.exe; Write-Host "gnugo: $gp" }
+          else { Write-Host "gnugo not found, shipping without engine" }
+
+      - name: Build EXE
+        shell: pwsh
+        run: |
+          $extra = if (Test-Path "gnugo.exe") { "--add-binary `"gnugo.exe;.`"" } else { "" }
+          Invoke-Expression ("pyinstaller --windowed --onedir --name 圍棋小學堂 " +
+            "--hidden-import tkinter --hidden-import tkinter.font " +
+            "--hidden-import tkinter.messagebox --hidden-import tkinter.ttk " +
+            "--noconfirm $extra main.py")
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: 圍棋小學堂-Windows
+          path: dist/圍棋小學堂/
+          retention-days: 30
