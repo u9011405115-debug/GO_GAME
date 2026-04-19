@@ -73,6 +73,8 @@ jobs:
 
       - name: Compile GnuGo from source in MSYS2
         shell: cmd
+        env:
+          CHERE_INVOKING: "1"
         run: C:\msys64\usr\bin\bash.exe -l build_gnugo.sh
 
       - name: Verify and copy gnugo.exe
