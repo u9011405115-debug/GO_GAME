@@ -29,7 +29,7 @@ jobs:
           path: dist/圍棋小學堂.exe
           retention-days: 30
 
-  # ── 版本二：含 GnuGo（用 runner 內建 MSYS2）─────────────────────────────────
+  # ── 版本二：含 GnuGo ─────────────────────────────────────────────────────────
   build-with-gnugo:
     runs-on: windows-latest
     steps:
@@ -40,19 +40,33 @@ jobs:
       - name: Install PyInstaller
         run: pip install pyinstaller
 
-      - name: Install GnuGo via built-in MSYS2
+      - name: Install GnuGo via MSYS2 pacman
         shell: cmd
-        run: C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm mingw-w64-x86_64-gnugo 2>&1 || echo pacman failed"
+        run: C:\msys64\usr\bin\bash.exe -lc "pacman -Sy --noconfirm mingw-w64-x86_64-gnugo 2>&1"
+
+      - name: Find gnugo.exe location
+        shell: pwsh
+        run: |
+          Write-Host "=== Searching C:\msys64 for gnugo ==="
+          Get-ChildItem -Path "C:\msys64" -Filter "*gnugo*" -Recurse -ErrorAction SilentlyContinue |
+            Select-Object FullName, Length | Format-Table -AutoSize
+          Write-Host "=== where gnugo ==="
+          where.exe gnugo 2>&1
 
       - name: Copy gnugo.exe to workspace
         shell: pwsh
         run: |
-          $src = "C:\msys64\mingw64\bin\gnugo.exe"
-          if (Test-Path $src) {
-            Copy-Item $src -Destination "gnugo.exe" -Force
-            Write-Host "OK: copied from $src ($((Get-Item 'gnugo.exe').Length) bytes)"
+          $candidates = @(
+            "C:\msys64\mingw64\bin\gnugo.exe",
+            "C:\msys64\usr\bin\gnugo.exe",
+            "C:\msys64\mingw64\bin\gnugo",
+            (where.exe gnugo 2>$null | Select-Object -First 1)
+          ) | Where-Object { $_ -and (Test-Path $_) }
+          if ($candidates.Count -gt 0) {
+            Copy-Item $candidates[0] -Destination "gnugo.exe" -Force
+            Write-Host "Copied: $($candidates[0])"
           } else {
-            Write-Error "gnugo.exe not found at $src"
+            Write-Error "gnugo not found anywhere!"
             exit 1
           }
 
