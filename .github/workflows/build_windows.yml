@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ── 版本一：無 GnuGo（規則 AI fallback）────────────────────────────────────
+  # ── 版本一：無 GnuGo ────────────────────────────────────────────────────────
   build-no-gnugo:
     runs-on: windows-latest
     steps:
@@ -16,23 +16,20 @@ jobs:
           python-version: "3.11"
       - name: Install PyInstaller
         run: pip install pyinstaller
-      - name: Build EXE (無 GnuGo)
+      - name: Build EXE
         shell: pwsh
         run: |
           pyinstaller --onefile --windowed --name "圍棋小學堂" `
-            --hidden-import tkinter `
-            --hidden-import tkinter.font `
-            --hidden-import tkinter.messagebox `
-            --hidden-import tkinter.ttk `
+            --hidden-import tkinter --hidden-import tkinter.font `
+            --hidden-import tkinter.messagebox --hidden-import tkinter.ttk `
             --noconfirm main.py
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: 圍棋小學堂-Windows-無引擎
           path: dist/圍棋小學堂.exe
           retention-days: 30
 
-  # ── 版本二：含 GnuGo 引擎 ──────────────────────────────────────────────────
+  # ── 版本二：含 GnuGo ────────────────────────────────────────────────────────
   build-with-gnugo:
     runs-on: windows-latest
     steps:
@@ -43,51 +40,40 @@ jobs:
       - name: Install PyInstaller
         run: pip install pyinstaller
 
-      # 方法一：Chocolatey
-      - name: Install GnuGo via Chocolatey
-        run: choco install gnugo -y --no-progress
-        continue-on-error: true
-
-      # 方法二：MSYS2（Chocolatey 失敗時備援）
-      - name: Install GnuGo via MSYS2
-        uses: msys2/setup-msys2@v2
+      # 用 MSYS2 shell 直接安裝並複製 gnugo
+      - uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
           update: false
           install: mingw-w64-x86_64-gnugo
-        continue-on-error: true
 
-      - name: Locate and copy gnugo.exe
+      - name: Copy gnugo.exe from MSYS2
+        shell: msys2 {0}
+        run: |
+          which gnugo
+          cp "$(which gnugo)" "$GITHUB_WORKSPACE/gnugo.exe"
+          echo "Copied gnugo.exe to workspace"
+
+      - name: Verify gnugo.exe
         shell: pwsh
         run: |
-          $paths = @(
-            (Get-Command gnugo.exe -ErrorAction SilentlyContinue)?.Source,
-            "C:\ProgramData\chocolatey\bin\gnugo.exe",
-            "C:\tools\gnugo\gnugo.exe",
-            "C:\msys64\mingw64\bin\gnugo.exe",
-            "C:\msys64\ucrt64\bin\gnugo.exe"
-          ) | Where-Object { $_ -and (Test-Path $_) }
-          if ($paths.Count -gt 0) {
-            Copy-Item $paths[0] -Destination gnugo.exe -Force
-            Write-Host "GnuGo found: $($paths[0])"
+          if (Test-Path "gnugo.exe") {
+            Write-Host "gnugo.exe found, size: $((Get-Item gnugo.exe).Length) bytes"
           } else {
-            Write-Error "gnugo.exe not found! Build will abort."
+            Write-Error "gnugo.exe not found!"
             exit 1
           }
 
-      - name: Build EXE (含 GnuGo)
+      - name: Build EXE with GnuGo
         shell: pwsh
         run: |
           pyinstaller --onefile --windowed --name "圍棋小學堂-GnuGo引擎" `
             --add-binary "gnugo.exe;." `
-            --hidden-import tkinter `
-            --hidden-import tkinter.font `
-            --hidden-import tkinter.messagebox `
-            --hidden-import tkinter.ttk `
+            --hidden-import tkinter --hidden-import tkinter.font `
+            --hidden-import tkinter.messagebox --hidden-import tkinter.ttk `
             --noconfirm main.py
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: 圍棋小學堂-Windows-GnuGo引擎
           path: dist/圍棋小學堂-GnuGo引擎.exe
